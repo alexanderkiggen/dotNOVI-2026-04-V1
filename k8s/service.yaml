@@ -1,0 +1,21 @@
+# Kubernetes Service for dotNOVI backend
+# Les 6 — Kubernetes
+#
+# Gebruik: kubectl apply -f k8s/service.yaml
+# Bereik:  minikube service dotnovi-backend
+#    of:   kubectl port-forward service/dotnovi-backend 3000:80
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: dotnovi-backend
+  labels:
+    app: dotnovi
+spec:
+  selector:
+    app: dotnovi
+  ports:
+    - port: 80
+      targetPort: 3000
+      protocol: TCP
+  type: NodePort

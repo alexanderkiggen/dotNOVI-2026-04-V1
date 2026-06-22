@@ -1,0 +1,105 @@
+# Prometheus Configuration for dotNOVI Monitoring
+
+global:
+  scrape_interval: 15s          # Default scrape interval
+  evaluation_interval: 15s      # How often to evaluate rules
+  external_labels:
+    monitor: 'dotnovi-monitor'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# Load rules once and periodically evaluate them
+rule_files:
+  # Uncomment to load alert rules
+  # - "alert_rules.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Node Exporter - host metrics
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: '([^:]+)(?::\d+)?'
+        replacement: '${1}'
+
+  # cAdvisor - Docker container metrics
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: '([^:]+)(?::\d+)?'
+        replacement: '${1}'
+
+  # dotNOVI Application Metrics
+  - job_name: 'dotnovi-app'
+    scrape_interval: 5s
+    scrape_timeout: 5s
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['host.docker.internal:3000']  # Gebruik host.docker.internal als de app lokaal draait
+        labels:
+          service: 'dotnovi'
+          environment: 'development'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+      - source_labels: [__scheme__]
+        target_label: scheme
+
+  # PostgreSQL Database Metrics (if using postgres-exporter)
+  # - job_name: 'postgres'
+  #   static_configs:
+  #     - targets: ['postgres-exporter:9187']
+  #       labels:
+  #         service: 'postgres'
+
+  # Docker Compose service discovery (Swarm mode)
+  # Uncomment if using Docker Swarm
+  # - job_name: 'docker'
+  #   static_configs:
+  #     - targets: ['localhost:8888']
+
+# Example alert rules configuration (reference)
+# alert_rules.yml content:
+# groups:
+#   - name: dotnovi
+#     interval: 5s
+#     rules:
+#       # Alert when application is down
+#       - alert: DotnoviDown
+#         expr: up{job="dotnovi-app"} == 0
+#         for: 1m
+#         annotations:
+#           summary: "dotNOVI application is down"
+#           description: "dotNOVI has been unreachable for more than 1 minute"
+#
+#       # Alert when memory usage is high
+#       - alert: HighMemoryUsage
+#         expr: (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) < 0.2
+#         for: 5m
+#         annotations:
+#           summary: "High memory usage detected"
+#           description: "Less than 20% memory available"
+#
+#       # Alert when error rate is high
+#       - alert: HighErrorRate
+#         expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+#         for: 5m
+#         annotations:
+#           summary: "High error rate detected"
+#           description: "Error rate is above 5%"

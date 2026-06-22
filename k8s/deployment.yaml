@@ -1,0 +1,55 @@
+# Kubernetes Deployment for dotNOVI backend
+# Les 6 — Kubernetes
+#
+# Gebruik: kubectl apply -f k8s/deployment.yaml
+# Check:   kubectl get pods
+# Logs:    kubectl logs -l app=dotnovi
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dotnovi-backend
+  labels:
+    app: dotnovi
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: dotnovi
+  template:
+    metadata:
+      labels:
+        app: dotnovi
+    spec:
+      containers:
+        - name: backend
+          image: dotnovi:v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "3000"
+            - name: DATABASE_URL
+              value: "postgresql://dotnovi:devops123@dotnovi-db:5432/dotnovi"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
