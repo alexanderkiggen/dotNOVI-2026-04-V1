@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "node --experimental-vm-modules node_modules/.bin/jest --coverage",
+    "test": "node --experimental-vm-modules node_modules/.bin/jest --coverage --ci --watchAll=false --runInBand",
     "test:watch": "node --experimental-vm-modules node_modules/.bin/jest --watch",
     "lint": "eslint src tests",
     "lint:fix": "eslint src tests --fix"
@@ -31,7 +31,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "eslint": "^10.2.1",
-    "jest": "^25.0.0",
+    "jest": "^30.3.0",
     "nodemon": "^3.1.14",
     "supertest": "^7.2.2"
   },
