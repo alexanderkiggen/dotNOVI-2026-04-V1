@@ -17,4 +17,4 @@ COPY --from=builder /app/src ./src
 # Stel de poort in
 EXPOSE 3000
 
-CMD ["/nodejs/bin/node", "src/index.js"]
+CMD ["src/index.js"]
