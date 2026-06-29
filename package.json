@@ -7,8 +7,8 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "node --experimental-vm-modules node_modules/.bin/jest --coverage",
-    "test:watch": "node --experimental-vm-modules node_modules/.bin/jest --watch",
+    "test": "NODE_ENV=test node --experimental-vm-modules node_modules/.bin/jest --coverage --ci --watchAll=false --runInBand",
+    "test:watch": "NODE_ENV=test node --experimental-vm-modules node_modules/.bin/jest --watch",
     "lint": "eslint src tests",
     "lint:fix": "eslint src tests --fix"
   },
@@ -24,6 +24,7 @@
     "dotenv": "^17.4.2",
     "ejs": "^5.0.2",
     "express": "^5.2.1",
+    "form-data": "^4.0.6",
     "pg": "^8.20.0",
     "prom-client": "^15.1.3"
   },
