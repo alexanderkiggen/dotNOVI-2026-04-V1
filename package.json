@@ -7,8 +7,8 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "node --experimental-vm-modules node_modules/.bin/jest --coverage --ci --watchAll=false --runInBand",
-    "test:watch": "node --experimental-vm-modules node_modules/.bin/jest --watch",
+    "test": "NODE_ENV=test node --experimental-vm-modules node_modules/.bin/jest --coverage --ci --watchAll=false --runInBand",
+    "test:watch": "NODE_ENV=test node --experimental-vm-modules node_modules/.bin/jest --watch",
     "lint": "eslint src tests",
     "lint:fix": "eslint src tests --fix"
   },

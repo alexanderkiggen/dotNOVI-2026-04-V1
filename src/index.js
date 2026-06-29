@@ -108,29 +108,35 @@ app.use((err, req, res, _next) => {
 
 
 // Start server
-const server = app.listen(PORT, async () => {
-    console.log(`dotNOVI listening on port ${PORT}`);
+let server;
+// Only start the server if we are not running tests
+if (process.env.NODE_ENV !== 'test') {
+    server = app.listen(PORT, async () => {
+        console.log(`dotNOVI listening on port ${PORT}`);
 
-    // Check database health
-    try {
-        const isHealthy = await healthCheck();
-        if (isHealthy) {
-            console.log('Database connection: OK');
-        } else {
-            console.warn('Database connection: FAILED - check DATABASE_URL');
+        // Check database health
+        try {
+            const isHealthy = await healthCheck();
+            if (isHealthy) {
+                console.log('Database connection: OK');
+            } else {
+                console.warn('Database connection: FAILED - check DATABASE_URL');
+            }
+        } catch (error) {
+            console.warn('Database health check error:', error.message);
         }
-    } catch (error) {
-        console.warn('Database health check error:', error.message);
-    }
-});
+    });
+}
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-    console.log('SIGTERM received, shutting down gracefully');
-    server.close(() => {
-        console.log('Server closed');
-        process.exit(0);
-    });
+    if (server) {
+        console.log('SIGTERM received, shutting down gracefully');
+        server.close(() => {
+            console.log('Server closed');
+            process.exit(0);
+        });
+    }
 });
 
 export default app;
