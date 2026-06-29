@@ -1,89 +1,65 @@
-name: CI - Continuous Integration
+name: CI & Release Pijplijn
 
 on:
   push:
-    branches: [ 'feature/**' ]
+    branches: [ 'main', 'feature/**' ]
   pull_request:
     branches: [ main ]
 
 jobs:
-  # Job 1: Codekwaliteit controleren
   lint:
     runs-on: ubuntu-latest
     steps:
-      - name: Code ophalen uit GitHub
-        uses: actions/checkout@v4
-
-      - name: Node.js installeren
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
+      - run: npm ci
+      - run: npm run lint --if-present
 
-      - name: Dependencies installeren
-        run: npm ci
-
-      - name: Linter uitvoeren
-        run: npm run lint --if-present
-
-  # Job 2: Automatische tests uitvoeren (Matrix)
   test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         node-version: [18, 20, 24]
-
     steps:
-      - name: Code ophalen uit GitHub
-        uses: actions/checkout@v4
-
-      - name: Node.js installeren (${{ matrix.node-version }})
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
+      - run: npm ci
+      - run: npm test
 
-      - name: Dependencies installeren
-        run: npm ci
-
-      - name: Tests uitvoeren
-        run: npm test
-
-      - name: Upload coverage
-        uses: codecov/codecov-action@v6
-        with:
-          files: ./coverage/lcov.info
-
-  # Conditional Deployment & Docker Push met Semantic Versioning
-  deploy:
+  release:
     runs-on: ubuntu-latest
     needs: [lint, test]
-    if: github.base_ref == 'main' || github.ref == 'refs/heads/main'
-
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
       contents: read
       packages: write
-
     steps:
-      - name: Code ophalen uit GitHub
-        uses: actions/checkout@v4
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Get version from package.json
-        id: version
-        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
-
-      - name: Build and push Docker image met versie tags
+      - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           tags: |
-            ghcr.io/alexanderkiggen/dotnovi-2026-04:v${{ steps.version.outputs.version }}
             ghcr.io/alexanderkiggen/dotnovi-2026-04:latest
+
+      - name: Trivy Vulnerability Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'ghcr.io/alexanderkiggen/dotnovi-2026-04:latest'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
