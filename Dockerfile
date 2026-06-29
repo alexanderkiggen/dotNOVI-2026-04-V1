@@ -6,7 +6,7 @@ RUN npm ci
 COPY . .
 
 # Stage 2: Distroless Production
-FROM gcr.io/distroless/nodejs20-debian12
+FROM gcr.io/distroless/nodejs22-debian12
 WORKDIR /app
 
 # Kopieer alleen de noodzakelijke bestanden van de builder stage
