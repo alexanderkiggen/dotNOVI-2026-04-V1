@@ -11,6 +11,27 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Capture current live deploy (rollback-punt)
+        id: capture
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+        run: |
+          echo "Ophalen van de huidige live deploy vóór we een nieuwe uitrollen..."
+          DEPLOYS=$(curl -s -H "Authorization: Bearer $RENDER_API_KEY" \
+            -H "Accept: application/json" \
+            "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys?limit=20")
+
+          PREVIOUS_DEPLOY_ID=$(echo "$DEPLOYS" | jq -r 'if type=="array" then [.[] | select(.deploy.status=="live")][0].deploy.id else empty end // empty')
+
+          if [ -z "$PREVIOUS_DEPLOY_ID" ]; then
+            echo "⚠️  Geen live deploy gevonden. Rollback wordt overgeslagen als deze deploy faalt."
+          else
+            echo "✅ Huidige live deploy bewaard als rollback-punt: $PREVIOUS_DEPLOY_ID"
+          fi
+
+          echo "previous_deploy_id=$PREVIOUS_DEPLOY_ID" >> "$GITHUB_OUTPUT"
+
       - name: Trigger Render deploy
         run: |
           curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
@@ -24,15 +45,71 @@ jobs:
 
           for ((i=1; i<=MAX_RETRIES; i++)); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" $URL)
-          
+
             if [ "$STATUS" == "200" ]; then
               echo "✅ Deploy succesvol! Health check gaf status 200."
               exit 0
             fi
-          
+
             echo "⏳ Poging $i/$MAX_RETRIES: Status is $STATUS. Nog niet klaar, we wachten ${RETRY_INTERVAL} seconden..."
             sleep $RETRY_INTERVAL
           done
 
           echo "❌ Health check is gefaald na 5 minuten. Check je Render logs!"
+          exit 1
+
+      - name: Automatic rollback on failure
+        if: failure()
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+          PREVIOUS_DEPLOY_ID: ${{ steps.capture.outputs.previous_deploy_id }}
+          HEALTH_URL: "https://dotnovi-alexander.onrender.com/health"
+        run: |
+          if [ -z "$PREVIOUS_DEPLOY_ID" ]; then
+            echo "⚠️  Geen rollback-punt bekend. Kan niet automatisch terugrollen — check Render handmatig."
+            exit 1
+          fi
+
+          # Welke deploy is nu live?
+          CURRENT_LIVE=$(curl -s -H "Authorization: Bearer $RENDER_API_KEY" \
+            -H "Accept: application/json" \
+            "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys?limit=20" \
+            | jq -r 'if type=="array" then [.[] | select(.deploy.status=="live")][0].deploy.id else empty end // empty')
+
+          # Is de kapotte nieuwe versie überhaupt live gegaan? Zo niet, dan draait
+          # de vorige versie nog gewoon en hoeven we niets terug te rollen.
+          if [ "$CURRENT_LIVE" == "$PREVIOUS_DEPLOY_ID" ]; then
+            echo "ℹ️  De nieuwe deploy is nooit live gegaan; $PREVIOUS_DEPLOY_ID draait nog steeds."
+            echo "   Geen rollback nodig, maar de pipeline faalde — onderzoek de logs."
+            exit 1
+          fi
+
+          echo "🔁 Rollback naar de laatst werkende deploy: $PREVIOUS_DEPLOY_ID"
+          HTTP_CODE=$(curl -s -o /tmp/rollback.json -w "%{http_code}" \
+            -X POST "https://api.render.com/v1/services/$RENDER_SERVICE_ID/rollback" \
+            -H "Authorization: Bearer $RENDER_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"deployId\": \"$PREVIOUS_DEPLOY_ID\"}")
+
+          if [ "$HTTP_CODE" != "201" ]; then
+            echo "❌ Rollback-aanvraag mislukte (HTTP $HTTP_CODE):"
+            cat /tmp/rollback.json
+            exit 1
+          fi
+          echo "✅ Rollback getriggerd. Wachten tot de vorige versie weer gezond is..."
+
+          # Controleer dat de service na de rollback weer 200 teruggeeft.
+          for ((i=1; i<=30; i++)); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL")
+            if [ "$STATUS" == "200" ]; then
+              echo "✅ Rollback voltooid — service is weer gezond (status 200)."
+              echo "   (De workflow blijft bewust op 'failed' staan: de nieuwe versie was kapot.)"
+              exit 0
+            fi
+            echo "⏳ Poging $i/30: status $STATUS, wachten op herstel..."
+            sleep 10
+          done
+
+          echo "❌ Service is na de rollback nog steeds niet gezond. Handmatig ingrijpen nodig!"
           exit 1
