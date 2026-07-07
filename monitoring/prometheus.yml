@@ -15,8 +15,8 @@ alerting:
 
 # Load rules once and periodically evaluate them
 rule_files:
-  # Uncomment to load alert rules
-  # - "alert_rules.yml"
+# Uncomment to load alert rules
+# - "alert_rules.yml"
 
 # Scrape configurations
 scrape_configs:
@@ -50,11 +50,12 @@ scrape_configs:
     scrape_interval: 5s
     scrape_timeout: 5s
     metrics_path: '/metrics'
+    scheme: https
     static_configs:
-      - targets: ['host.docker.internal:3000']  # Gebruik host.docker.internal als de app lokaal draait
+      - targets: ['dotnovi-alexander.onrender.com']
         labels:
           service: 'dotnovi'
-          environment: 'development'
+          environment: 'production'
     relabel_configs:
       - source_labels: [__address__]
         target_label: instance
